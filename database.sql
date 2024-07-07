@@ -17,33 +17,16 @@ CREATE TABLE Products (
     quantity INT NOT NULL
 );
 
-CREATE TYPE investment_type_choice AS ENUM (
-    'Equity Investment',
-    'Debt Investment',
-    'Convertible Notes',
-    'Crowdfunding',
-    'Strategic Partnership',
-    'Impact Investment',
-    'Revenue Sharing',
-    'Other'
-);
---create ENUM type to specify the investment type
 
-CREATE TABLE Investors (
-    investor_id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    email VARCHAR(50) NOT NULL,
-    phone VARCHAR(10) NOT NULL,
-    investment_type investment_type_choice NOT NULL,
-    investment_amount DECIMAL(10,2) NOT NULL
-);
+CREATE TABLE Orders (
+    order_id SERIAL PRIMARY KEY,
+    product_id INT REFERENCES Products(product_id),
+    customer_id INT REFERENCES Customers(customer_id),
+    order_date DATE NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    UNIQUE (order_id, product_id)
 
-CREATE TABLE Investments (
-    investment_id SERIAL PRIMARY KEY,
-    investor_id INT REFERENCES Investors(investor_id),
-    investment_type investment_type_choice NOT NULL,
-    amount DECIMAL(10, 2) NOT NULL,
-    investment_date DATE NOT NULL
 );
 
 CREATE TABLE Financial_Metrics (
@@ -95,3 +78,12 @@ CREATE TABLE Transactions (
     price DECIMAL(10, 2) NOT NULL,
     quantity INT NOT NULL
 ); */
+
+
+/*CREATE TABLE Investments (
+    investment_id SERIAL PRIMARY KEY,
+    investor_id INT REFERENCES Investors(investor_id),
+    investment_type investment_type_choice NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    investment_date DATE NOT NULL
+);*/
