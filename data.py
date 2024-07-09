@@ -2,8 +2,11 @@ import pandas as pd
 from faker import Faker
 import random
 import psycopg2
+from config import config
 from concurrent.futures import ThreadPoolExecutor
-from crud_operations import create_customer, create_product, create_order, get_existing_ids
+from crud_operations import (create_customer, create_product, create_order_with_items, get_existing_ids,concurrent_create_customers,concurrent_create_products,concurrent_update_products,concurrent_create_orders_with_items,concurrent_update_orders_with_items,concurrent_create_financial_metrics,concurrent_update_financial_metrics)
+import time
+
 
 # Initialize the Faker object
 fake = Faker()
@@ -11,12 +14,9 @@ fake = Faker()
 
 # Database connection function
 def get_db_connection():
-    return psycopg2.connect(
-        host="localhost",
-        database="your_database_name",
-        user="your_username",
-        password="your_password"
-    )
+    params = config()
+    conn = psycopg2.connect(**params)
+    return conn
 
 
 # Generate fake data
@@ -38,8 +38,8 @@ def generate_customers(num):
     return pd.DataFrame(customers)
 
 # Generate 50 fake customers
-customers = generate_customers(50)
-print(customers)
+#customers = generate_customers(50)
+#print(customers)
 
 
 def generate_products(num):
@@ -60,8 +60,8 @@ def generate_products(num):
     
     return products
 
-products = generate_products(50)
-print(products)
+#products = generate_products(50)
+#print(products)
 
 
 
@@ -95,7 +95,50 @@ def generate_orders(num, customer_ids, product_ids):
     
     return orders
 
-# Example usage
-orders = generate_orders(50, customer_ids, product_ids)
-for order in orders:
-    print(order)
+#orders = generate_orders(50, customer_ids, product_ids)
+
+
+if __name__ == "__main__":
+    # Generate fake customers and products
+    customers = generate_customers(50)
+    products = generate_products(80)
+
+    # Get existing customer and product IDs from the database
+    customer_ids = get_existing_ids('Customers', 'customer_id')
+    product_ids = get_existing_ids('Products', 'product_id')
+    orders = generate_orders(50, customer_ids, product_ids)
+
+    # Measure performance without concurrency
+    start_time = time.time()
+    # Perform CRUD operations without concurrency
+    # For example:
+    # - Insert customers
+    create_customer(customers)
+    # - Update customers
+    # - Insert products
+    create_product(products)
+    # - Update products
+    # - Generate orders and perform CRUD operations
+    create_order_with_items(orders)
+    end_time = time.time()
+    execution_time_without_concurrency = end_time - start_time
+
+    print(f"Execution time without concurrency: {execution_time_without_concurrency} seconds")
+
+    # Measure performance with concurrency
+    start_time = time.time()
+    # Perform CRUD operations with concurrency
+    concurrent_create_customers(customers)
+    #concurrent_update_customers(customers)
+    concurrent_create_products(products)
+    #concurrent_update_products(products)
+
+    # Generate orders and perform CRUD operations with items
+    orders = generate_orders(50, customer_ids, product_ids)
+    concurrent_create_orders_with_items([(order, [{'product_id': order['product_id'], 'quantity': order['quantity'], 'price': order['price']}]) for order in orders])
+    concurrent_update_orders_with_items([(order, [{'order_item_id': 1, 'product_id': order['product_id'], 'quantity': order['quantity'], 'price': order['price']}]) for order in orders])
+
+    end_time = time.time()
+    execution_time_with_concurrency = end_time - start_time
+
+    print(f"Execution time with concurrency: {execution_time_with_concurrency} seconds")
