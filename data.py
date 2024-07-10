@@ -4,7 +4,7 @@ import random
 import psycopg2
 from config import config
 from concurrent.futures import ThreadPoolExecutor
-from crud_operations import (create_customer, create_product, create_order_with_items, get_existing_ids,concurrent_create_customers,concurrent_create_products,concurrent_update_products,concurrent_create_orders_with_items,concurrent_update_orders_with_items,concurrent_create_financial_metrics,concurrent_update_financial_metrics)
+from crud_operations import (create_customer, read_customers, create_product, create_order_with_items, get_existing_ids,concurrent_create_customers,concurrent_create_products,concurrent_update_products,concurrent_create_orders_with_items,concurrent_update_orders_with_items,concurrent_create_financial_metrics,concurrent_update_financial_metrics)
 import time
 
 
@@ -25,15 +25,15 @@ def generate_customers(num):
     for _ in range(num):
         name = fake.name()
         email = fake.email()
-        phone = fake.phone_number()
+        phone = fake.phone_number()[:20]
         address = fake.address()
-        username = name.lower().replace(' ', '_')
+        username = name.lower().replace(' ', '_')[:50]
         customers.append({
-            'name': name,
+            #'name': name,
+            'username': username,
             'email': email,
             'phone': phone,
-            'address': address,
-            'username': username
+            'address': address
         })
     return pd.DataFrame(customers)
 
@@ -57,16 +57,17 @@ def generate_products(num):
             'price': price,
             'quantity': quantity
         })
+        print(f"Generated product: {products}")
     
-    return products
+    return pd.DataFrame(products)
 
 #products = generate_products(50)
 #print(products)
 
 
 
-customer_ids = get_existing_ids('Customers', 'customer_id')
-product_ids = get_existing_ids('Products', 'product_id')
+#customer_ids = get_existing_ids('Customers', 'customer_id')
+#product_ids = get_existing_ids('Products', 'product_id')
 
 def generate_orders(num, customer_ids, product_ids):
     orders = []
@@ -81,7 +82,7 @@ def generate_orders(num, customer_ids, product_ids):
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT price FROM Products WHERE product_id = %s', (product_id,))
-        price = cursor.fetchone()[0]
+        price = cursor.fetchone()[0] 
         cursor.close()
         conn.close()
         
@@ -90,55 +91,62 @@ def generate_orders(num, customer_ids, product_ids):
             'product_id': product_id,
             'order_date': order_date,
             'quantity': quantity,
-            'price': price
+            'price': price * quantity
         })
     
-    return orders
+    return pd.DataFrame(orders)
 
 #orders = generate_orders(50, customer_ids, product_ids)
 
 
 if __name__ == "__main__":
     # Generate fake customers and products
-    customers = generate_customers(50)
-    products = generate_products(80)
+    #customers = generate_customers(20)
+    products = generate_products(3)
 
     # Get existing customer and product IDs from the database
-    customer_ids = get_existing_ids('Customers', 'customer_id')
-    product_ids = get_existing_ids('Products', 'product_id')
-    orders = generate_orders(50, customer_ids, product_ids)
+    #customer_ids = get_existing_ids('Customers', 'customer_id')
+    #product_ids = get_existing_ids('Products', 'product_id')
+    #orders = generate_orders(50, customer_ids, product_ids)
 
     # Measure performance without concurrency
     start_time = time.time()
     # Perform CRUD operations without concurrency
     # For example:
     # - Insert customers
-    create_customer(customers)
+    #for _, row in customers.iterrows():
+       # create_customer(row.to_dict())
+    #create_product(products)
+    #for _, customer in customers.iterrows():
+    #create_customer(customers)
     # - Update customers
     # - Insert products
-    create_product(products)
+    #products_df = generate_products(3)  # Generate 3 products as a DataFrame
+    for _, row in products.iterrows():
+        create_product(row.to_dict())
     # - Update products
     # - Generate orders and perform CRUD operations
-    create_order_with_items(orders)
+    #create_order_with_items(orders)
     end_time = time.time()
     execution_time_without_concurrency = end_time - start_time
 
-    print(f"Execution time without concurrency: {execution_time_without_concurrency} seconds")
+    print(f"Execution time for creating customer and product without concurrency: {execution_time_without_concurrency} seconds")
 
     # Measure performance with concurrency
+    #orders = generate_orders(50, customer_ids, product_ids)
     start_time = time.time()
     # Perform CRUD operations with concurrency
-    concurrent_create_customers(customers)
+    #concurrent_create_customers(customers)
     #concurrent_update_customers(customers)
     concurrent_create_products(products)
     #concurrent_update_products(products)
 
     # Generate orders and perform CRUD operations with items
-    orders = generate_orders(50, customer_ids, product_ids)
-    concurrent_create_orders_with_items([(order, [{'product_id': order['product_id'], 'quantity': order['quantity'], 'price': order['price']}]) for order in orders])
-    concurrent_update_orders_with_items([(order, [{'order_item_id': 1, 'product_id': order['product_id'], 'quantity': order['quantity'], 'price': order['price']}]) for order in orders])
+    #concurrent_create_orders_with_items(orders)
+    #concurrent_update_orders_with_items(orders) 
 
     end_time = time.time()
     execution_time_with_concurrency = end_time - start_time
 
-    print(f"Execution time with concurrency: {execution_time_with_concurrency} seconds")
+    print(f"Execution time for creating customer and product with concurrency: {execution_time_with_concurrency} seconds")
+    print(read_customers())

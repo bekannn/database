@@ -8,7 +8,11 @@ def get_db_connection():
     return conn
 
 # Create (Insert)
-def creat_customer(username, email, phone, address):
+def create_customer(customer):
+    username = customer['username']
+    email = customer['email']
+    phone = customer['phone']
+    address = customer['address']    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -60,6 +64,7 @@ def read_customers():
     customers = cursor.fetchall()
     cursor.close()
     conn.close()
+    #print(customers)
     return customers
 
 # Delete
@@ -77,12 +82,16 @@ def delete_customer(customer_id):
 # Product CRUD Operations
 
 def create_product(product):
-    name, category, price, quantity = product
+    print(f"Debugging product data: {product}")
+    name = product['name']
+    category = product['category']
+    price = product['price']
+    quantity = product['quantity']
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            'INSERT INTO Products (name, category, price, quantity) VALUES (%s, %s, %s, %s)',
+            'INSERT INTO Products (name, category, price, quantity) VALUES (%s, %s::product_choice, %s, %s)',
             (name, category, price, quantity)
         )
         conn.commit()
@@ -130,25 +139,21 @@ def get_existing_ids(table, id_column):
 #####################################################################
 # Order CRUD Operations
 
-def create_order_with_items(order, order_items):
-    customer_id, order_date = order
+def create_order_with_items(order):
+    customer_id = order['customer_id']
+    product_id = order['product_id']
+    order_date = order['order_date']
+    quantity = order['quantity']
+    price = order['price']
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         # Insert the order
         cursor.execute(
-            'INSERT INTO Orders (customer_id, order_date) VALUES (%s, %s) RETURNING order_id;',
-            (customer_id, order_date)
+            'INSERT INTO Orders (customer_id, order_date, product_id, quantity, price) VALUES (%s, %s, %s, %s, %s) RETURNING order_id;',
+            (customer_id, order_date,product_id, quantity, price)
         )
         order_id = cursor.fetchone()[0]
-
-        # Insert each order item
-        for item in order_items:
-            product_id, quantity, price = item
-            cursor.execute(
-                'INSERT INTO OrderItems (order_id, product_id, quantity, price) VALUES (%s, %s, %s, %s)',
-                (order_id, product_id, quantity, price)
-            )
 
         # Commit the transaction
         conn.commit()
