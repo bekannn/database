@@ -1,6 +1,9 @@
 import psycopg2
 from config import config
 from concurrent.futures import ThreadPoolExecutor
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 def get_db_connection():
     params = config()
@@ -31,8 +34,9 @@ def create_customer(customer):
         conn.close()
 
 def concurrent_create_customers(customers):
+    cus_dicts = customers.to_dict(orient='records')
     with ThreadPoolExecutor() as executor:
-        executor.map(create_customer, customers)
+        list(executor.map(create_customer, cus_dicts))
 
 
 def update_customer(customer):
@@ -68,21 +72,35 @@ def read_customers():
     return customers
 
 # Delete
-def delete_customer(customer_id):
+def delete_customer(customer_id=None, column=None, value=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM Customers WHERE customer_id = %s', (customer_id,))
+    
+    if customer_id is not None:
+        # Delete a single customer by ID
+        cursor.execute('DELETE FROM Customers WHERE customer_id = %s', (customer_id,))
+        print(f"Customer with ID {customer_id} deleted!")
+    elif column is not None and value is not None:
+        # Delete customers based on specific column and value
+        query = f'DELETE FROM Customers WHERE {column} = %s'
+        cursor.execute(query, (value,))
+        print(f"Customers with {column} = {value} deleted!")
+    else:
+        # Delete all customers
+        cursor.execute('DELETE FROM Customers')
+        print("All customers deleted!")
+    
     conn.commit()
     cursor.close()
     conn.close()
-    print("Customer deleted!")
 
 
 #####################################################################
 # Product CRUD Operations
 
 def create_product(product):
-    print(f"Debugging product data: {product}")
+    logging.debug(f"Debugging product data: {product}")
+    #print(f"Debugging product data: {product}")
     name = product['name']
     category = product['category']
     price = product['price']
@@ -95,9 +113,9 @@ def create_product(product):
             (name, category, price, quantity)
         )
         conn.commit()
-        print(f"Product {name} added!")
+        logging.info(f"Product {name} added!")
     except Exception as e:
-        print(f"Error adding product {name}: {e}")
+        logging.error(f"Error adding product {name}: {e}")
     finally:
         cursor.close()
         conn.close()
@@ -120,8 +138,9 @@ def update_product(product):
         conn.close()
 
 def concurrent_create_products(products):
+    product_dicts = products.to_dict(orient='records')  # Convert DataFrame rows to a list of dictionaries
     with ThreadPoolExecutor() as executor:
-        executor.map(create_product, products)
+        list(executor.map(create_product, product_dicts))
 
 def concurrent_update_products(products):
     with ThreadPoolExecutor() as executor:
@@ -167,8 +186,9 @@ def create_order_with_items(order):
         conn.close()
 
 def concurrent_create_orders_with_items(orders_with_items):
+    orders_dicts = orders_with_items.to_dict(orient='records')
     with ThreadPoolExecutor() as executor:
-        executor.map(lambda args: create_order_with_items(*args), orders_with_items)
+        list(executor.map(create_order_with_items, orders_dicts))
 
 def update_order_with_items(order, order_items):
     order_id, customer_id, order_date = order

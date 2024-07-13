@@ -4,7 +4,7 @@ import random
 import psycopg2
 from config import config
 from concurrent.futures import ThreadPoolExecutor
-from crud_operations import (create_customer, read_customers, create_product, create_order_with_items, get_existing_ids,concurrent_create_customers,concurrent_create_products,concurrent_update_products,concurrent_create_orders_with_items,concurrent_update_orders_with_items,concurrent_create_financial_metrics,concurrent_update_financial_metrics)
+from crud_operations import (create_customer, read_customers,delete_customer, create_product, create_order_with_items, get_existing_ids,concurrent_create_customers,concurrent_create_products,concurrent_update_products,concurrent_create_orders_with_items,concurrent_update_orders_with_items,concurrent_create_financial_metrics,concurrent_update_financial_metrics)
 import time
 
 
@@ -57,7 +57,7 @@ def generate_products(num):
             'price': price,
             'quantity': quantity
         })
-        print(f"Generated product: {products}")
+        #print(f"Generated product: {products}")
     
     return pd.DataFrame(products)
 
@@ -101,44 +101,46 @@ def generate_orders(num, customer_ids, product_ids):
 
 if __name__ == "__main__":
     # Generate fake customers and products
-    #customers = generate_customers(20)
-    products = generate_products(3)
+    customers = generate_customers(1000)
+    #products = generate_products(3)
 
     # Get existing customer and product IDs from the database
     #customer_ids = get_existing_ids('Customers', 'customer_id')
     #product_ids = get_existing_ids('Products', 'product_id')
-    #orders = generate_orders(50, customer_ids, product_ids)
+    #orders = generate_orders(500, customer_ids, product_ids)
 
     # Measure performance without concurrency
     start_time = time.time()
+    #delete_customer()
     # Perform CRUD operations without concurrency
     # For example:
     # - Insert customers
-    #for _, row in customers.iterrows():
-       # create_customer(row.to_dict())
-    #create_product(products)
-    #for _, customer in customers.iterrows():
-    #create_customer(customers)
+    for _, row in customers.iterrows():
+        create_customer(row.to_dict())
+    
+    
     # - Update customers
     # - Insert products
     #products_df = generate_products(3)  # Generate 3 products as a DataFrame
-    for _, row in products.iterrows():
-        create_product(row.to_dict())
+    #for _, row in products.iterrows():
+     #   create_product(row.to_dict())
     # - Update products
     # - Generate orders and perform CRUD operations
-    #create_order_with_items(orders)
+    #for _, row in orders.iterrows():
+         #create_order_with_items(row.to_dict())
     end_time = time.time()
     execution_time_without_concurrency = end_time - start_time
 
-    print(f"Execution time for creating customer and product without concurrency: {execution_time_without_concurrency} seconds")
+    print(f"Execution time for sequentially creating(inserting) 1000 customers without concurrency: {execution_time_without_concurrency} seconds")
 
     # Measure performance with concurrency
-    #orders = generate_orders(50, customer_ids, product_ids)
+    customers = generate_customers(1000)
+    #orders = generate_orders(500, customer_ids, product_ids)
     start_time = time.time()
     # Perform CRUD operations with concurrency
-    #concurrent_create_customers(customers)
+    concurrent_create_customers(customers)
     #concurrent_update_customers(customers)
-    concurrent_create_products(products)
+    #concurrent_create_products(products)
     #concurrent_update_products(products)
 
     # Generate orders and perform CRUD operations with items
@@ -148,5 +150,5 @@ if __name__ == "__main__":
     end_time = time.time()
     execution_time_with_concurrency = end_time - start_time
 
-    print(f"Execution time for creating customer and product with concurrency: {execution_time_with_concurrency} seconds")
-    print(read_customers())
+    print(f"Execution time for creating(inserting) 1000 customers with concurrency: {execution_time_with_concurrency} seconds")
+    #print(read_customers())
