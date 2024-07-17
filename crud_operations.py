@@ -2,64 +2,114 @@ import psycopg2
 from config import config
 from concurrent.futures import ThreadPoolExecutor
 import logging
+from psycopg2 import pool
+import psycopg2.extras
 
-logging.basicConfig(level=logging.DEBUG)
 
-def get_db_connection():
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+params = {
+    'dbname': 'mmaster',
+    'user': 'postgres',
+    'password': 'bhkm2547',
+    'host': 'localhost',
+    'port': '5432'
+}
+
+'''def get_db_connection():
     params = config()
     conn = psycopg2.connect(**params)
-    return conn
+    return conn '''
+conn_pool = psycopg2.pool.SimpleConnectionPool(1, 20, **params)
 
-# Create (Insert)
+def get_db_connection():
+    return conn_pool.getconn()
+
+def release_db_connection(conn):
+    conn_pool.putconn(conn)
+
+# Create (Insert) 
+
 def create_customer(customer):
-    username = customer['username']
-    email = customer['email']
-    phone = customer['phone']
-    address = customer['address']    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute(
-            'INSERT INTO Customers (username, email, phone, address) VALUES (%s,%s,%s,%s)',
-            (username, email, phone, address)
+            'INSERT INTO Customers (username, email, phone, address) VALUES (%s, %s, %s, %s)',
+            (customer['username'], customer['email'], customer['phone'], customer['address'])
         )
         conn.commit()
-        cursor.close()
-        conn.close()
-        print("Customer added!")
+        logging.info(f"Customer {customer['username']} added!")
     except Exception as e:
-        print(f"Error adding Customer {username}: {e}")
+        logging.error(f"Error adding customer {customer['username']}: {e}")
+        conn.rollback()
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
 def concurrent_create_customers(customers):
     cus_dicts = customers.to_dict(orient='records')
     with ThreadPoolExecutor() as executor:
         list(executor.map(create_customer, cus_dicts))
 
+def convert_to_tuples(records, columns):
+    return [tuple(record[col] for col in columns) for record in records]
 
-def update_customer(customer):
-    customer_id, username, email, phone, address = customer
+"""
+
+
+
+# Create (Insert) with Batch Inserts
+def create_customers_batch(customers_batch):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            'UPDATE Customer with the customer_id = %s, username = %s, email = %s, phone = %s, address = %s',
-            (customer_id, username, email, phone, address)
-        )
+        # Convert list of dicts to list of tuples
+        customers_tuples = [(customer['username'], customer['email'], customer['phone'], customer['address']) for customer in customers_batch]
+        
+        insert_query = 'INSERT INTO Customers (username, email, phone, address) VALUES %s'
+        psycopg2.extras.execute_values(cursor, insert_query, customers_tuples)
+        #use execute_values for bulk insertion
         conn.commit()
-        print(f"Customer {customer_id} updated!")
+        logging.info(f"Batch of {len(customers_batch)} customers added!")
     except Exception as e:
-        print(f"Error updating customer {customer_id}: {e}")
+        logging.error(f"Error adding batch of customers: {e}")
+        conn.rollback() # If there is an error, roll back to maintain the consistency of the data
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn) # release the connection back to the connection pool
 
-def concurrent_update_customers(customers):
+def concurrent_create_customers(customers, batch_size=100):
+    cus_dicts = customers.to_dict(orient='records')
+    # Create batches
+    customer_batches = [cus_dicts[i:i + batch_size] for i in range(0, len(cus_dicts), batch_size)]
+    
     with ThreadPoolExecutor() as executor:
-        executor.map(update_customer, customers)
+        list(executor.map(create_customers_batch, customer_batches))
+        """
 
+# Update (Batch Updates) for Customers
+def update_customers(customers_batch):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        update_query = 'UPDATE Customers SET username = data.username, email = data.email, phone = data.phone, address = data.address FROM (VALUES %s) AS data (customer_id, username, email, phone, address) WHERE Customers.customer_id = data.customer_id'
+        customers_tuples = convert_to_tuples(customers_batch, ['customer_id', 'username', 'email', 'phone', 'address'])
+        psycopg2.extras.execute_values(cursor, update_query, customers_tuples)
+        conn.commit()
+        logging.info(f"Batch of {len(customers_batch)} customers updated!")
+    except Exception as e:
+        logging.error(f"Error updating batch of customers: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        release_db_connection(conn)
+
+def concurrent_update_customers(customers, batch_size=100):
+    customer_batches = [customers[i:i + batch_size] for i in range(0, len(customers), batch_size)]
+    with ThreadPoolExecutor() as executor:
+        list(executor.map(update_customers, customer_batches))
 # Read (Select)
 def read_customers():
     conn = get_db_connection()
@@ -68,7 +118,7 @@ def read_customers():
     customers = cursor.fetchall()
     cursor.close()
     conn.close()
-    #print(customers)
+    release_db_connection(conn)
     return customers
 
 # Delete
@@ -98,53 +148,50 @@ def delete_customer(customer_id=None, column=None, value=None):
 #####################################################################
 # Product CRUD Operations
 
-def create_product(product):
-    logging.debug(f"Debugging product data: {product}")
-    #print(f"Debugging product data: {product}")
-    name = product['name']
-    category = product['category']
-    price = product['price']
-    quantity = product['quantity']
+# Create (Insert) with Batch Inserts for Products
+def create_products(products_batch):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            'INSERT INTO Products (name, category, price, quantity) VALUES (%s, %s::product_choice, %s, %s)',
-            (name, category, price, quantity)
-        )
+        products_tuples = convert_to_tuples(products_batch, ['name', 'category', 'price', 'quantity'])
+        insert_query = 'INSERT INTO Products (name, category, price, quantity) VALUES %s'
+        psycopg2.extras.execute_values(cursor, insert_query, products_tuples)
         conn.commit()
-        logging.info(f"Product {name} added!")
+        logging.info(f"Batch of {len(products_batch)} products added!")
     except Exception as e:
-        logging.error(f"Error adding product {name}: {e}")
+        logging.error(f"Error adding batch of products: {e}")
+        conn.rollback()
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
-def update_product(product):
-    product_id, name, category, price, quantity = product
+def concurrent_create_products(products, batch_size=100):
+    product_dicts = products.to_dict(orient='records')
+    product_batches = [product_dicts[i:i + batch_size] for i in range(0, len(product_dicts), batch_size)]
+    with ThreadPoolExecutor() as executor:
+        list(executor.map(create_products, product_batches))
+
+# Update (Batch Updates) for Products
+def update_products(products_batch):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            'UPDATE Products SET name = %s, category = %s, price = %s, quantity = %s WHERE product_id = %s',
-            (name, category, price, quantity, product_id)
-        )
+        update_query = 'UPDATE Products SET name = data.name, category = data.category, price = data.price, quantity = data.quantity FROM (VALUES %s) AS data (product_id, name, category, price, quantity) WHERE Products.product_id = data.product_id'
+        products_tuples = convert_to_tuples(products_batch, ['product_id', 'name', 'category', 'price', 'quantity'])
+        psycopg2.extras.execute_values(cursor, update_query, products_tuples)
         conn.commit()
-        print(f"Product {product_id} updated!")
+        logging.info(f"Batch of {len(products_batch)} products updated!")
     except Exception as e:
-        print(f"Error updating product {product_id}: {e}")
+        logging.error(f"Error updating batch of products: {e}")
+        conn.rollback()
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
-def concurrent_create_products(products):
-    product_dicts = products.to_dict(orient='records')  # Convert DataFrame rows to a list of dictionaries
+def concurrent_update_products(products, batch_size=100):
+    product_batches = [products[i:i + batch_size] for i in range(0, len(products), batch_size)]
     with ThreadPoolExecutor() as executor:
-        list(executor.map(create_product, product_dicts))
-
-def concurrent_update_products(products):
-    with ThreadPoolExecutor() as executor:
-        executor.map(update_product, products)
+        list(executor.map(update_products, product_batches))
 
 def get_existing_ids(table, id_column):
     conn = get_db_connection()
@@ -152,43 +199,37 @@ def get_existing_ids(table, id_column):
     cursor.execute(f"SELECT {id_column} FROM {table}")
     ids = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_db_connection(conn)
     return [id[0] for id in ids]
 
 #####################################################################
 # Order CRUD Operations
 
-def create_order_with_items(order):
-    customer_id = order['customer_id']
-    product_id = order['product_id']
-    order_date = order['order_date']
-    quantity = order['quantity']
-    price = order['price']
+def create_order_with_items(orders_batch):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         # Insert the order
-        cursor.execute(
-            'INSERT INTO Orders (customer_id, order_date, product_id, quantity, price) VALUES (%s, %s, %s, %s, %s) RETURNING order_id;',
-            (customer_id, order_date,product_id, quantity, price)
-        )
-        order_id = cursor.fetchone()[0]
-
-        # Commit the transaction
+        order_tup = convert_to_tuples(orders_batch,['customer_id', 'order_date','product_id', 'quantity', 'price'] )
+        query = 'INSERT INTO Orders (customer_id, order_date, product_id, quantity, price) VALUES %s RETURNING order_id;'
+        psycopg2.extras.execute_values(cursor, query, order_tup)
+        logging.info(f"Batch of {len(orders_batch)} products added!")
         conn.commit()
-        print(f"Order {order_id} and its items added!")
     except Exception as e:
-        # Rollback in case of error
+        logging.error(f"Error adding batch of products: {e}")
         conn.rollback()
-        print(f"Error adding order and its items: {e}")
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
-def concurrent_create_orders_with_items(orders_with_items):
+
+def concurrent_create_orders_with_items(orders_with_items, batch_size=100):
     orders_dicts = orders_with_items.to_dict(orient='records')
+    order_batch = [orders_dicts[i:i + batch_size] for i in range(0,len(orders_dicts), batch_size)]
     with ThreadPoolExecutor() as executor:
-        list(executor.map(create_order_with_items, orders_dicts))
+        list(executor.map(create_order_with_items, order_batch))
+
+    
 
 def update_order_with_items(order, order_items):
     order_id, customer_id, order_date = order
@@ -225,47 +266,70 @@ def concurrent_update_orders_with_items(orders_with_items):
     with ThreadPoolExecutor() as executor:
         executor.map(lambda args: update_order_with_items(*args), orders_with_items)
 
+def get_order_details(order_id):
+    conn = None
+    try:
+        params = config()
+        conn = psycopg2.connect(**params)
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT customer_id, product_id, price FROM Orders WHERE order_id = %s', (order_id,)
+        )
+        order_details = cursor.fetchone()
+        cursor.close()
+        return order_details
+    except (Exception, psycopg2.DatabaseError) as error:
+        logging.error(f"Error fetching order details for order_id {order_id}: {error}")
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 #####################################################################
 # Financial Metrics CRUD Operations
 
-def create_financial_metric(metric):
-    metric_name, value, metric_date = metric
+# Create (Insert) with Batch Inserts for Financial Transactions
+def create_transactions_batch(transactions_batch):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            'INSERT INTO Financial_Metrics (metric_name, value, metric_date) VALUES (%s, %s, %s)',
-            (metric_name, value, metric_date)
-        )
+        transactions_tuples = convert_to_tuples(transactions_batch, ['order_id', 'customer_id', 'product_id', 'amount', 'transaction_date'])
+        insert_query = 'INSERT INTO Financial_Transactions (order_id, customer_id, product_id, amount, transaction_date) VALUES %s'
+        psycopg2.extras.execute_values(cursor, insert_query, transactions_tuples)
         conn.commit()
-        print(f"Financial metric {metric_name} added!")
+        logging.info(f"Batch of {len(transactions_batch)} transactions added!")
     except Exception as e:
-        print(f"Error adding financial metric {metric_name}: {e}")
+        logging.error(f"Error adding batch of transactions: {e}")
+        conn.rollback()
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
-def update_financial_metric(metric):
-    metric_id, metric_name, value, metric_date = metric
+def concurrent_create_transactions(transactions, batch_size=100):
+    transactions_dicts = transactions.to_dict(orient='records')
+    transaction_batches = [transactions_dicts[i:i + batch_size] for i in range(0, len(transactions_dicts), batch_size)]
+    with ThreadPoolExecutor() as executor:
+        list(executor.map(create_transactions_batch, transaction_batches))
+
+# Update (Batch Updates) for Financial Transactions
+def update_transactions_batch(transactions_batch):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            'UPDATE Financial_Metrics SET metric_name = %s, value = %s, metric_date = %s WHERE metric_id = %s',
-            (metric_name, value, metric_date, metric_id)
-        )
+        update_query = 'UPDATE Financial_Transactions SET customer_id = data.customer_id, product_id = data.product_id, amount = data.amount, transaction_date = data.transaction_date FROM (VALUES %s) AS data (transaction_id, order_id, customer_id, product_id, amount, transaction_date) WHERE Financial_Transactions.transaction_id = data.transaction_id'
+        transactions_tuples = convert_to_tuples(transactions_batch, ['transaction_id', 'order_id', 'customer_id', 'product_id', 'amount', 'transaction_date'])
+        psycopg2.extras.execute_values(cursor, update_query, transactions_tuples)
         conn.commit()
-        print(f"Financial metric {metric_id} updated!")
+        logging.info(f"Batch of {len(transactions_batch)} transactions updated!")
     except Exception as e:
-        print(f"Error updating financial metric {metric_id}: {e}")
+        logging.error(f"Error updating batch of transactions: {e}")
+        conn.rollback()
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
-def concurrent_create_financial_metrics(metrics):
+def concurrent_update_transactions(transactions, batch_size=100):
+    transaction_batches = [transactions[i:i + batch_size] for i in range(0, len(transactions), batch_size)]
     with ThreadPoolExecutor() as executor:
-        executor.map(create_financial_metric, metrics)
-
-def concurrent_update_financial_metrics(metrics):
-    with ThreadPoolExecutor() as executor:
-        executor.map(update_financial_metric, metrics)
+        list(executor.map(update_transactions_batch, transaction_batches))

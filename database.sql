@@ -29,11 +29,16 @@ CREATE TABLE Orders (
 
 );
 
-CREATE TABLE Financial_Metrics (
-    metrc_id SERIAL PRIMARY Key,
-    metric_name VARCHAR(50) NOT NULL,
-    value DECIMAL(10, 2) NOT NULL,
-    metric_date DATE NOT NULL
+CREATE TABLE Financial_Transactions (
+    transaction_id SERIAL PRIMARY KEY,
+    order_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    product_id INT NOT NULL,
+    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(10, 2) NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES Orders(order_id),
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id),
+    FOREIGN KEY (product_id) REFERENCES Products(product_id)
 );
 
 
