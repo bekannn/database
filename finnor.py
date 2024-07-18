@@ -42,6 +42,6 @@ def aggregate_query_per_customer(query):
 query = "SELECT customer_id, amount FROM financial_transactions ORDER BY transaction_id"
 star = time.time()
 result = aggregate_query_per_customer(query)
-print(result)
+#print(result)
 end = time.time()
 print(f"time= {end-star}")

@@ -135,7 +135,7 @@ if __name__ == "__main__":
     #customer_ids = get_existing_ids('Customers', 'customer_id')
     #product_ids = get_existing_ids('Products', 'product_id')
     #orders = generate_orders(6000, customer_ids, product_ids)
-    order_ids = get_existing_ids('Orders', 'order_id')
+    #order_ids = get_existing_ids('Orders', 'order_id')
     #transactions = generate_transactions(4000, order_ids)
 
     # Measure performance without concurrency
@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     #products = generate_products(5000)
 
-    transactions = generate_transactions(20000, order_ids)
+    #transactions = generate_transactions(20000, order_ids)
     # Measure performance with concurrency
     #customers = generate_customers(10000)
     #orders = generate_orders(50000, customer_ids, product_ids)
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     #concurrent_create_products(products)
     #concurrent_update_products(products)
 
-    concurrent_create_transactions(transactions)
+    #concurrent_create_transactions(transactions)
 
     # Generate orders and perform CRUD operations with items
     #concurrent_create_orders_with_items(orders)
@@ -188,5 +188,5 @@ if __name__ == "__main__":
     end_time = time.time()
     execution_time_with_concurrency = end_time - start_time
 
-    print(f"Execution time for creating(inserting) 20000 transactions with concurrencyand batch: {execution_time_with_concurrency} seconds")
+    print(f"Execution time for creating(inserting) 10000 customers with concurrencyand batch: {execution_time_with_concurrency} seconds")
     #print(read_customers())

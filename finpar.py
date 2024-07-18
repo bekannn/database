@@ -50,7 +50,7 @@ def process_partition(query, customer_id_subset):
     release_db_connection(conn)
     
     df = pd.DataFrame(rows, columns=['customer_id', 'amount'])  # Adjust columns as per your query result
-    df['amount'] = df['amount'].astype(float)  # Convert amount to float if needed
+    df['amount'] = df['amount'].astype(float)  # Convert amount to float
     
     grouped = df.groupby('customer_id').agg(
         total_sum=('amount', 'sum'),
@@ -78,6 +78,6 @@ def parallel_aggregate(query, num_partitions):
 query = "SELECT customer_id, amount FROM financial_transactions ORDER BY transaction_id"
 start_time = time.time()
 result = parallel_aggregate(query, num_partitions=10)
-print(result)
+#print(result)
 end_time = time.time()
 print(f"Time = {end_time - start_time}")
