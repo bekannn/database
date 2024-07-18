@@ -1,4 +1,5 @@
-# database optimization with parallelism and concurrency
+# Database optimization with parallelism and concurrency
+(The project files are in the "master" branch)
 Language: Python
 Database: Postgresql
 Database Table: Customers, Products, Orders, Financial Transactions
